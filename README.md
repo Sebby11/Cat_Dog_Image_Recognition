@@ -1,6 +1,6 @@
 # Cat Dog Image Recognition Network
 
-(Still in the works) Basic image recognition of Cats & Dogs using image recognition. I am developing this to ultimately create a tutorial on creating Neural Networks for some friends who have wanted to know more about it.
+(Still in the works) Basic image recognition of Cats & Dogs using image recognition. I am developing this to ultimately teach myself CNN/pytorch as well as create a tutorial on creating Neural Networks for some friends who have wanted to know more about it.
 <br />
 <br />
 Images sourced from: https://github.com/laxmimerit/dog-cat-full-dataset
