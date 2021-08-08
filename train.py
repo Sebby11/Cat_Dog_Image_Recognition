@@ -8,6 +8,7 @@ Set to be main file for training the network
 Lines 26-27 from Aladdin Persson w/ minor changes: https://www.youtube.com/watch?v=ZoZHd0Zm3RY
 """
 
+import numpy as np
 import torch
 import torchvision
 import torch.nn as nn
@@ -24,78 +25,68 @@ from catsdogsdataset import CatsDogsDataset
 
 transform = transforms.Compose([
 				transforms.ToTensor(),
-				transforms.Normalize([0.5,0.5,0.5],
-									[0.5,0.5,0.5])
+				transforms.Resize((150, 150))
 			])
 # 1.) Get Data & place it to batch load w/ DataLoader
 training_data = CatsDogsDataset(csv='cats_dogs.csv', image_dir='data\\train\\both', 
 								transform=transform)
 
-train, val = torch.utils.data.random_split(training_data, [1000, 19000])
+#train, val = torch.utils.data.random_split(training_data, [5000, 15000])
 
-train_loader = DataLoader(dataset=train, batch_size=10, shuffle=True)
+train_loader = DataLoader(dataset=training_data, batch_size=100, shuffle=True)
 
 '''
-# Test print an image from the data
-images, labels = next(iter(train_loader))
-
-print("Images: \n", images, "\n\n")
-print("Labels: ", labels, "\n\n")
-for i in range(10):
-	plt.imshow(images[i].permute(1, 2, 0))
+# Test print images
+for image, label in train_loader:
+	fig, ax = plt.subplots(figsize=(16, 12))
+	ax.set_xticks([])
+	ax.set_yticks([])
+	ax.imshow(torchvision.utils.make_grid(image, nrow=8).permute(1, 2, 0))
 	plt.show()
-exit()
+	break
 '''
+
 
 
 # 2.) Get model // ResNet
 class network(nn.Module):
 	def __init__(self):
 		super().__init__()
-		self.l1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=5)
-		self.l2 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3)
-		self.l3 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=5)
+		self.model = nn.Sequential(
+				nn.Conv2d(in_channels=3, out_channels=32, kernel_size=4, padding=1),
+				nn.ReLU(),
+				nn.Conv2d(32, 64, kernel_size=3, padding=1),
+				nn.ReLU(),
+				nn.MaxPool2d(2,2),
 
-		self.maxPooling = nn.MaxPool2d(kernel_size=4)
-		self.adaptive = nn.AdaptiveAvgPool1d(256)
+				nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+				nn.ReLU(),
+				nn.Conv2d(128, 128, kernel_size=3, padding=1),
+				nn.ReLU(),
+				nn.MaxPool2d(2,2),
 
-		self.l4 = nn.Linear(in_features=256, out_features=128)
-		self.l5 = nn.Linear(in_features=128, out_features=64)
-		self.out = nn.Linear(in_features=64, out_features=1)
+				nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1),
+				nn.ReLU(),
+				nn.Conv2d(256, 256, kernel_size=3, padding=1),
+				nn.ReLU(),
+				nn.MaxPool2d(2,2),
+
+				nn.Flatten(),
+				nn.Linear(82944, 1024),
+				nn.ReLU(),
+				nn.Linear(1024, 512),
+				nn.ReLU(),
+				nn.Linear(512, 1)
+			)
 
 	def forward(self, x):
-		x = self.l1(x)
-		#max pooling layer
-		x = self.maxPooling(x)
-		x = nn.functional.relu(x)
-		
-		x = self.l2(x)
-		x = self.maxPooling(x)
-		x = nn.functional.relu(x)
+		return nn.functional.relu(self.model(x))
 
-		x = self.l3(x)
-		x = self.maxPooling(x)
-		x = nn.functional.relu(x)
-
-		x = nn.functional.dropout(x)
-		x = x.view(1, x.size()[0], -1)
-		x = self.adaptive(x).squeeze()
-
-		x = self.l4(x)
-		x = nn.functional.relu(x)
-
-		x = self.l5(x)
-		x = nn.functional.relu(x)
-
-		x = nn.functional.relu(self.out(x))
-
-		return x
-	
 model = network()
 
 
 # 3.) Get optimizer
-optimizer = optim.SGD(model.parameters(), lr=1e-2)
+optimizer = optim.SGD(model.parameters(), lr=.001, momentum=0.9)
 
 # 4.) Get loss(objective) function
 loss_function = nn.BCELoss()
@@ -108,24 +99,21 @@ for epoch in range(2):
 	for batch in train_loader:
 		inputImages, labels = batch
 
-		labels = labels.view(10, 1)
+		optimizer.zero_grad()
+
+		labels = labels.view(100, 1)
 		labels = labels.float()
-		#inputImages = inputImages.view(inputImages.size(0), -1)
-		#print("INPUT IMAGES: ", inputImages.size())
-		
 		
 		prediction = model(inputImages)
-		#exit()
+		#plt.imshow(inputImages[0].permute(1, 2, 0))
+		#plt.show()
 
 		loss = loss_function(prediction, labels)
-		#print(prediction)
-		#print(labels)
-		#print()
 		print("Loss {}: {}".format(cnt, loss))
 		cnt += 1
-		#exit()
-
-		optimizer.zero_grad()
+		print("Correct Label: ", labels[0])
+		print("Predicted label: ", prediction[0])
+		print("\n\n")
 
 		loss.backward()
 
@@ -135,6 +123,8 @@ for epoch in range(2):
 
 	print("Epoch {}: Loss {}".format(epoch, total_loss))
 
+
+# 6.) Testing
 images, labels = next(iter(train_loader))
 
 print("Images: \n", images[2], "\n\n")
@@ -145,3 +135,6 @@ print("PREDICTION: ", prediction)
 
 plt.imshow(images[2].permute(1, 2, 0))
 plt.show()
+
+PATH = './my_net.pth'
+torch.save(model.state_dict(), PATH)
